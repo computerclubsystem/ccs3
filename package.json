@@ -1,0 +1,36 @@
+{
+    "name": "ccs3",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "libs/types:install-deps": "npm --workspace libs/types install",
+        "libs/types:build": "npm --workspace libs/types run build",
+        "libs/types:build-watch": "npm --workspace libs/types run build:watch",
+        "libs/redis-client:install-deps": "npm --workspace libs/redis-client install",
+        "libs/redis-client:build": "npm --workspace libs/redis-client run build",
+        "libs/redis-client:build-watch": "npm --workspace libs/redis-client run build:watch",
+        "apps/status-manager:install-deps": "npm --workspace apps/status-manager install",
+        "apps/status-manager:build": "npm --workspace apps/status-manager run build",
+        "apps/status-manager:build-watch": "npm --workspace apps/status-manager run build:watch",
+        "apps/status-manager:build-include-deps": "npm run libs/types:install-deps && npm run libs/types:build && npm run libs/redis-client:install-deps && npm run libs/redis-client:build && npm run apps/status-manager:install-deps && npm run apps/status-manager:build",
+        "apps/status-manager:build-image": "nerdctl -n k8s.io build -t ccs3/status-manager:0.0.1 -f devops/Dockerfile.status-manager .",
+        "apps/device-connector:install-deps": "npm --workspace apps/device-connector install",
+        "apps/device-connector:build": "npm --workspace apps/device-connector run build",
+        "apps/device-connector:build-watch": "npm --workspace apps/device-connector run build:watch",
+        "apps/device-connector:build-include-deps": "npm run libs/types:install-deps && npm run libs/types:build && npm run libs/redis-client:install-deps && npm run libs/redis-client:build && npm run apps/device-connector:install-deps && npm run apps/device-connector:build",
+        "apps/device-connector:build-image": "nerdctl -n k8s.io build -t ccs3/device-connector:0.0.1 -f devops/Dockerfile.device-connector .",
+        "build-images": "npm run apps/status-manager:build-image && npm run apps/device-connector:build-image",
+        "build": "npm run libs/types:install-deps && npm run libs/types:build && npm run libs/redis-client:install-deps && npm run libs/redis-client:build && npm run apps/status-manager:install-deps && npm run apps/status-manager:build && npm run apps/device-connector:install-deps && npm run apps/device-connector:build"
+    },
+    "author": "",
+    "license": "ISC",
+    "workspaces": [
+        "apps/*",
+        "libs/*"
+    ],
+    "engines": {
+        "node": ">=20.11.0",
+        "npm": ">=10.2.4"
+    }
+}

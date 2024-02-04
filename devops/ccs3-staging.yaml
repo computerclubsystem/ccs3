@@ -1,0 +1,107 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ccs3-redis-deployment
+  labels:
+    app: ccs3
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ccs3
+  template:
+    metadata:
+      labels:
+        app: ccs3
+        pod: redis
+    spec:
+      containers:
+      - name: ccs3-redis-container
+        image: redis/redis-stack-server:7.2.0-v6
+        resources:
+          limits:
+            memory: 128Mi
+            cpu: "0.1"
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ccs3-status-manager-deployment
+  labels:
+    app: ccs3
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ccs3
+  template:
+    metadata:
+      labels:
+        app: ccs3
+        pod: status-manager
+    spec:
+      containers:
+      - name: ccs3-status-manager-container
+        image: ccs3/status-manager:0.0.1
+        env:
+        - name: CCS3_REDIS_HOST
+          value: "ccs3-redis-service"
+        resources:
+          limits:
+            memory: 128Mi
+            cpu: "0.1"
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ccs3-device-connector-deployment
+  labels:
+    app: ccs3
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ccs3
+  template:
+    metadata:
+      labels:
+        app: ccs3
+        pod: device-connector
+    spec:
+      containers:
+      - name: ccs3-device-connector-container
+        image: ccs3/device-connector:0.0.1
+        env:
+        - name: CCS3_REDIS_HOST
+          value: "ccs3-redis-service"
+        resources:
+          limits:
+            memory: 128Mi
+            cpu: "0.1"
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: ccs3-redis-service
+  labels:
+    app: ccs3
+    service: ccs3-redis-service
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis-backend
+      protocol: TCP
+      port: 6379
+    #   targetPort: 6379
+  selector:
+    app: ccs3
+    pod: redis

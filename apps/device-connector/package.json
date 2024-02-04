@@ -1,0 +1,21 @@
+{
+    "name": "@computerclubsystem/device-connector",
+    "version": "1.0.0",
+    "description": "",
+    "author": "",
+    "type": "module",
+    "scripts": {
+        "build": "tsc --project tsconfig.json --sourceMap",
+        "build:watch": "tsc --project tsconfig.json --sourceMap --watch",
+        "tsc": "tsc"
+    },
+    "license": "ISC",
+    "dependencies": {
+        "@computerclubsystem/redis-client": "*",
+        "@computerclubsystem/types": "*"
+    },
+    "devDependencies": {
+        "@types/node": "20.11.5",
+        "typescript": "5.3.3"
+    }
+}

@@ -1,0 +1,24 @@
+{
+    "name": "@computerclubsystem/redis-client",
+    "version": "1.0.0",
+    "description": "",
+    "type": "module",
+    "types": "dist/*/**.d.ts",
+    "exports": {
+        ".": "./dist/index.mjs"
+    },
+    "scripts": {
+        "build": "tsc --project tsconfig.json --sourceMap",
+        "build:watch": "tsc --project tsconfig.json --sourceMap --watch",
+        "tsc": "tsc"
+    },
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "redis": "4.6.12"
+    },
+    "devDependencies": {
+        "@types/node": "20.11.5",
+        "typescript": "5.3.3"
+    }
+}

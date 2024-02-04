@@ -1,0 +1,27 @@
+# Build for Rancher with containerd: nerdctl -n k8s.io build -t ccs3/device-connector:0.0.1 -f Dockerfile.device-connector ../
+FROM node:20.11.0-alpine3.19 as build
+
+WORKDIR /app
+
+COPY libs/types ./libs/types
+COPY libs/redis-client ./libs/redis-client
+COPY apps/device-connector ./apps/device-connector
+COPY package-lock.json .
+COPY package.json .
+# TODO: Installation should also install dependencies in node_modules - this one uses symlinks causing the dependencies folders like libs/redis-client mandatory
+#       Need to investigate "npm install --install-links"
+RUN npm run apps/device-connector:build-include-deps
+
+FROM node:20.11.0-alpine3.19 as final
+WORKDIR /app
+# TODO: Find out how can we install dependencies in node_modules and not use them as links so we can just copy node_modules
+# Because node_modules does not have the real code but just links to libs/.../dist
+# we need to copy app dependency folders (libs) with their package.json and dist folders
+# This will ensure import in apps will find the correct path (not in node_modules/@computerclubmanager but in libs/.../dist)
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/libs/types/package.json ./libs/types/package.json
+COPY --from=build /app/libs/types/dist ./libs/types/dist
+COPY --from=build /app/libs/redis-client/package.json ./libs/redis-client/package.json
+COPY --from=build /app/libs/redis-client/dist ./libs/redis-client/dist
+COPY --from=build /app/apps/device-connector/dist ./dist
+CMD ["node", "./dist/index.mjs"]
