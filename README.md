@@ -210,13 +210,33 @@ import { ... } from '@computerclubsystem/<new-lib-name>'
 ```
 
 ## Build docker images
-DevOps related files are in `devops` folder. Each dockerfile should have a comment in the beginning showing a sample command line that builds the image. The `package.json` file has npm scripts for building images like:
+DevOps related files are in `devops` folder. Each dockerfile has a comment in the beginning showing a sample command line that builds the image. The `package.json` file has npm scripts for building images if Docker Desktop is used or Rancher Desktop is used with `containerd` (`nerdctl`) like:
 ```bash
-npm run apps/status-manager:build-image
+npm run apps/status-manager:build-image-docker
 ```
-Building `status-manager` manually would look like this for Rancher Desktop with `containerd`:
+or
+```bash
+npm run apps/status-manager:build-image-racnher-nerdctl
+```
+
+Building `status-manager` manually would look like this for Docker Desktop:
+```bash
+docker build -t ccs3/status-manager:0.0.1 -f Dockerfile.status-manager ../apps/status-manager
+```
+
+Building `status-manager` manually would look like this for Rancher Desktop with `containerd` (`nerdctl`):
 ```bash
 nerdctl -n k8s.io build -t ccs3/status-manager:0.0.1 -f Dockerfile.status-manager ../apps/status-manager
+```
+
+Building all the images for Docker Desktop:
+```bash
+npm run build-images-docker
+```
+
+Building all the images for Rancher Desktop with `containerd` (`nerdctl`):
+```bash
+npm run build-images-rancher-nerdctl
 ```
 
 ## Kubernetes
