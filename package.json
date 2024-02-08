@@ -35,5 +35,11 @@
     "engines": {
         "node": ">=20.11.0",
         "npm": ">=10.2.4"
+    },
+    "dependencies": {
+        "ws": "8.16.0"
+    },
+    "devDependencies": {
+        "@types/ws": "8.5.10"
     }
 }

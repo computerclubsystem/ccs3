@@ -266,3 +266,9 @@ For prod environment, apply the file `devops/ccs3-staging.yaml`:
 ```bash
 kubectl apply -f ./devops/ccs3-staging.yaml
 ```
+
+## Certificates
+Device connector needs certificate files to operate its WebSocket server. Sample files can be found in `certificates` folder - `device-connector-cert.pem` and `device-connector-key.pem`. These should be used for development purposes only - deployed version must use other certificates. Sample OpenSSL usage to create self-signed certificate .pem files:
+```bash
+openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout key.pem -out cert.pem -addext "extendedKeyUsage = serverAuth"
+```

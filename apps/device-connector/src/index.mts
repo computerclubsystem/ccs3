@@ -6,6 +6,10 @@ import { Message } from '@computerclubsystem/types/messages/declarations/message
 import { ChannelName } from '@computerclubsystem/types/channels/channel-name.mjs';
 import { MessageType } from '@computerclubsystem/types/messages/declarations/message-type.mjs';
 import { createPongMessage } from '@computerclubsystem/types/messages/pong.mjs';
+import { WssServer } from './wss-server.mjs';
+
+const wsServer = new WssServer();
+wsServer.start();
 
 const messageBusIdentifier = 'ccs3/device-connector';
 const sharedChannel = ChannelName.shared;
@@ -93,3 +97,4 @@ const isMessageTargeted = (messageTarget?: string): boolean => !messageTarget ||
 class DeviceConnector {
 
 }
+
