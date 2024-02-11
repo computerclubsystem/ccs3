@@ -1,7 +1,6 @@
 import { MessageHeader } from './message-header.mjs';
-import { MessageBody } from './message-body.mjs';
 
-export interface Message {
+export interface Message<TBody> {
     header: MessageHeader;
-    body: MessageBody;
+    body: TBody;
 }

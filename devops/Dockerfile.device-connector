@@ -8,6 +8,7 @@ COPY libs/redis-client ./libs/redis-client
 COPY apps/device-connector ./apps/device-connector
 COPY package-lock.json .
 COPY package.json .
+
 # TODO: Installation should also install dependencies in node_modules - this one uses symlinks causing the dependencies folders like libs/redis-client mandatory
 #       Need to investigate "npm install --install-links"
 RUN npm run apps/device-connector:build-include-deps
@@ -24,4 +25,8 @@ COPY --from=build /app/libs/types/dist ./libs/types/dist
 COPY --from=build /app/libs/redis-client/package.json ./libs/redis-client/package.json
 COPY --from=build /app/libs/redis-client/dist ./libs/redis-client/dist
 COPY --from=build /app/apps/device-connector/dist ./dist
+# TODO: Find a way to better organize folders - now certificates must be in the root folder, not a subfolder of the index.mjs file
+COPY certificates/device-connector-cert.pem ./certificates/
+COPY certificates/device-connector-key.pem ./certificates/
+
 CMD ["node", "./dist/index.mjs"]

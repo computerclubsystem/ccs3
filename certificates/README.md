@@ -1,0 +1,2 @@
+# Certificates
+- These certificates are only for development purposes. The real certificates must be provided by Kubernetes as secrets. The applications are trying to find their certificates in `./certificates/<file-name.pem>`.

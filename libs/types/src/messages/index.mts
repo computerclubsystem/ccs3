@@ -1,2 +1,3 @@
-export * from './ping.mjs';
-export * from './pong.mjs';
+export * from './ping.message.mjs';
+export * from './pong.message.mjs';
+export * from './device-auth.message.mjs';

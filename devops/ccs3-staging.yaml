@@ -105,3 +105,23 @@ spec:
   selector:
     app: ccs3
     pod: redis
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: ccs3-device-connector-service
+  labels:
+    app: ccs3
+    service: ccs3-device-connector-service
+spec:
+  type: LoadBalancer
+  ports:
+    - name: device-connector-backend
+      protocol: TCP
+      port: 8443
+      # targetPort: 6379
+  selector:
+    app: ccs3
+    pod: device-connector
