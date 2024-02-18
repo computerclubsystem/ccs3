@@ -1,62 +1,251 @@
-import EventEmitter from 'node:events';
+import { DetailedPeerCertificate } from 'node:tls';
+import { EventEmitter } from 'node:events';
+import * as fs from 'node:fs';
 
-import { RedisConnectSettings, RedisConnector, RedisConnectorEventName } from './redis-connector.mjs';
-import { WssServerConnector } from './wss-server-connector.mjs';
-import { ClientConnectedEventArgs, ConnectionClosedEventArgs, ConnectionErrorEventArgs, WssServerEventName, MessageReceivedEventArgs } from './wss-server.mjs';
+import { RedisConnector } from './redis-connector.mjs';
+import {
+    ClientConnectedEventArgs, ConnectionClosedEventArgs, ConnectionErrorEventArgs,
+    WssServerEventName, MessageReceivedEventArgs, WssServer, WssServerConfig
+} from './wss-server.mjs';
 import { Message } from '@computerclubsystem/types/messages/declarations/message.mjs';
-import { MessageType } from '@computerclubsystem/types/messages/declarations/message-type.mjs';
 import { Logger } from './logger.mjs';
-import { DeviceAuthMessage } from '@computerclubsystem/types/messages/device-auth.message.mjs';
-import { createDeviceAuthResultMessage } from '@computerclubsystem/types/messages/device-auth-result.message.mjs';
-import { DeviceStatusAccessType, createDeviceSetStatusMessage } from '@computerclubsystem/types/messages/device-set-status.message.mjs';
-import { CreateConnectedRedisClientOptions, RedisClientMessageCallback, RedisPubClient, RedisSubClient } from '@computerclubsystem/redis-client';
+import { Device } from '@computerclubsystem/types/entities/device.mjs';
+import {
+    CreateConnectedRedisClientOptions, RedisClientMessageCallback, RedisPubClient, RedisSubClient
+} from '@computerclubsystem/redis-client';
 import { ChannelName } from '@computerclubsystem/types/channels/channel-name.mjs';
-
-interface ConnectedClientData {
-    connectionId: number;
-    deviceId: string;
-}
+import { createBusDeviceGetByCertificateRequestMessage } from '@computerclubsystem/types/messages/bus/bus-device-get-by-certificate-request.message.mjs';
+import { BusDeviceGetByCertificateReplyMessage } from '@computerclubsystem/types/messages/bus/bus-device-get-by-certificate-reply.message.mjs';
+import { MessageType } from '@computerclubsystem/types/messages/declarations/message-type.mjs';
+import { RoundTripData } from '@computerclubsystem/types/messages/declarations/round-trip-data.mjs';
+import { BusDeviceStatusesMessage, DeviceStatus } from '@computerclubsystem/types/messages/bus/bus-device-statuses.message.mjs';
+import { createDeviceSetStatusMessage } from '@computerclubsystem/types/messages/devices/device-set-status.message.mjs';
 
 export class DeviceConnector {
     redisConnector!: RedisConnector;
     redisEmitter!: EventEmitter;
-    wssServerConnector!: WssServerConnector;
+    wssServer!: WssServer;
     wssEmitter!: EventEmitter;
     desktopSwitchCounter = 0;
     connectedClients = new Map<number, ConnectedClientData>();
 
     private readonly subClient = new RedisSubClient();
     private readonly pubClient = new RedisPubClient();
-    
+    private readonly messageBusIdentifier = 'ccs3/device-connector';
     private logger = new Logger();
 
     async start(): Promise<void> {
-        // TODO: Bring this back when Redis is available
         await this.joinMessageBus();
-        // TODO: Subscribe to channels
-
         this.startWebSocketServer();
+        this.startDeviceConnectionsMonitor();
+    }
 
-        this.startSendingDeviceSetStatusMessage();
+    private processDeviceConnected(args: ClientConnectedEventArgs): void {
+        this.logger.log('Device connected', args);
+        if (!args.ipAddress || !args.certificate?.fingerprint) {
+            this.logger.warn('The device ip address is unknown or certificate does not have fingerprint');
+            return;
+        }
+        const data: ConnectedClientData = {
+            connectionId: args.connectionId,
+            connectedAt: this.getNow(),
+            deviceId: null,
+            certificate: args.certificate,
+            certificateThumbprint: this.getLowercasedCertificateThumbprint(args.certificate.fingerprint),
+            ipAddress: args.ipAddress,
+            lastMessageReceivedAt: null,
+            receivedMessagesCount: 0,
+            isAuthenticated: false,
+        };
+        this.connectedClients.set(args.connectionId, data);
+        const msg = createBusDeviceGetByCertificateRequestMessage();
+        const roundTripData: ConnectionRoundTripData = {
+            connectionId: data.connectionId,
+            certificateThumbprint: data.certificateThumbprint,
+        };
+        msg.header.roundTripData = roundTripData;
+        msg.body.certificateThumbprint = args.certificate.fingerprint.replaceAll(':', '').toLowerCase();
+        msg.body.ipAddress = args.ipAddress;
+        this.publishToDevicesChannel(msg);
+    }
+
+    private getLowercasedCertificateThumbprint(certificateFingerprint: string): string {
+        return certificateFingerprint.replaceAll(':', '').toLowerCase();
+    }
+
+    private processDeviceConnectionClosed(args: ConnectionClosedEventArgs): void {
+        this.logger.log('Device connection closed', args);
+        this.removeClient(args.connectionId);
+    }
+
+    private processDeviceConnectionError(args: ConnectionErrorEventArgs): void {
+        this.logger.warn('Device connection error', args);
+        this.removeClient(args.connectionId);
+    }
+
+    private processDeviceMessageReceived(args: MessageReceivedEventArgs): void {
+        let msg: Message<any> | null;
+        let type: MessageType | undefined;
+        try {
+            msg = this.deserializeWebSocketBufferToMessage(args.buffer);
+            this.logger.log('Received message from device', msg);
+            type = msg?.header?.type;
+            if (!type) {
+                return;
+            }
+        } catch (err) {
+            this.logger.warn(`Can't deserialize device message`, args, err);
+            return;
+        }
+
+        switch (type) {
+        }
+
+        // switch (type) {
+        //     case MessageType....:
+        //         this.process...Message(msg, args.connectionId);
+        //         break;
+        // }
+    }
+
+    processBusMessageReceived(channelName: string, message: Message<any>): void {
+        if (this.isOwnMessage(message)) {
+            return;
+        }
+        this.logger.log('Received channel', channelName, 'message', message.header.type, message);
+        const type = message.header.type;
+        if (!type) {
+            return;
+        }
+
+        switch (channelName) {
+            case ChannelName.devices:
+                this.processDevicesBusMessage(message);
+                break;
+            case ChannelName.shared:
+                break;
+        }
+    }
+
+    processDevicesBusMessage<TBody>(message: Message<TBody>): void {
+        const type = message.header.type;
+        switch (type) {
+            case MessageType.busDeviceGetByCertificateReply:
+                this.processDeviceGetByCertificateReply(message as BusDeviceGetByCertificateReplyMessage);
+                break;
+            case MessageType.busDeviceStatuses:
+                this.processDeviceStatusesMessage(message as BusDeviceStatusesMessage);
+                break;
+        }
+    }
+
+    processDeviceStatusesMessage(message: BusDeviceStatusesMessage): void {
+        this.sendStatusToDevices(message.body.deviceStatuses);
+    }
+
+    sendStatusToDevices(deviceStatuses: DeviceStatus[]): void {
+        for (const status of deviceStatuses) {
+            const connections = this.getConnectedClientsDataByDeviceId(status.deviceId);
+            if (connections.length > 0) {
+                for (const connection of connections) {
+                    const connectionId = connection[0];
+                    const msg = createDeviceSetStatusMessage();
+                    msg.body.state = status.state;
+                    msg.body.amounts = {
+                        expectedEndAt: status.expectedEndAt,
+                        remainingSeconds: status.remainingSeconds,
+                        startedAt: status.startedAt,
+                        totalSum: status.totalSum,
+                        totalTime: status.totalTime,
+                    };
+                    try {
+                        this.sendToDevice(msg, connectionId);
+                    } catch (err) {
+                        this.logger.warn(`Can't send to device`, connectionId, msg, err);
+                    }
+                }
+            }
+        }
+    }
+
+    processDeviceGetByCertificateReply(message: BusDeviceGetByCertificateReplyMessage): void {
+        const device: Device = message.body.device;
+        const roundtripData = message.header.roundTripData as ConnectionRoundTripData;
+        const connectionId = roundtripData.connectionId;
+        if (!device || device.deactivated) {
+            this.logger.log('The device', device, 'is not active. Closing connection.', roundtripData);
+            this.removeClient(connectionId);
+            this.wssServer.closeConnection(connectionId);
+            return;
+        }
+
+        const connectionExist = this.wssServer.attachToConnection(connectionId);
+        if (!connectionExist) {
+            this.removeClient(connectionId);
+            return;
+        }
+        const clientData = this.getConnectedClientData(connectionId);
+        if (clientData) {
+            clientData.deviceId = device.id;
+            clientData.isAuthenticated = true;
+            // TODO: Send message to device
+        }
+    }
+
+    private getConnectedClientData(connectionId: number): ConnectedClientData | undefined {
+        return this.connectedClients.get(connectionId);
+    }
+
+    private getConnectedClientsDataByDeviceId(deviceId: string): [number, ConnectedClientData][] {
+        const result: [number, ConnectedClientData][] = [];
+        for (const item of this.connectedClients.entries()) {
+            const data = item[1];
+            if (data.deviceId === deviceId) {
+                result.push(item);
+            }
+        }
+        return result;
+    }
+
+    private removeClient(connectionId: number): void {
+        this.connectedClients.delete(connectionId);
+    }
+
+    isOwnMessage<TBody>(message: Message<TBody>): boolean {
+        return (message.header.source === this.messageBusIdentifier);
+    }
+
+    deserializeWebSocketBufferToMessage(buffer: Buffer): Message<any> | null {
+        const text = buffer.toString();
+        const json = JSON.parse(text);
+        return json as Message<any>;
+    }
+
+    deserializeBusMessageToMessage(text: string): Message<any> | null {
+        const json = JSON.parse(text);
+        return json as Message<any>;
+    }
+
+    private sendToDevice<TBody>(message: Message<TBody>, connectionId: number): void {
+        this.logger.log('Sending to device', connectionId, message);
+        this.wssServer.sendJSON(message, connectionId);
+    }
+
+    private publishToDevicesChannel<TBody>(message: Message<TBody>): void {
+        message.header.source = this.messageBusIdentifier;
+        this.logger.log('Publishing message', ChannelName.devices, message.header.type, message);
+        this.pubClient.publish(ChannelName.devices, JSON.stringify(message));
+    }
+
+    getNow(): number {
+        return Date.now();
     }
 
     private async joinMessageBus(): Promise<void> {
-        // this.redisConnector = new RedisConnector();
-        // const redisPortEnv = this.getEnvVarValue('CCS3_REDIS_PORT');
-        // const redisConnectSettings: RedisConnectSettings = {
-        //     host: this.getEnvVarValue('CCS3_REDIS_HOST') || 'localhost',
-        //     port: redisPortEnv ? parseInt(redisPortEnv) : undefined,
-        // };
-
-        // await this.redisConnector.connect(redisConnectSettings);
-        // this.redisEmitter = this.redisConnector.getEmitter();
-        // this.redisEmitter.on(RedisConnectorEventName.messageReceived, args => {
-        //     this.processRedisMessageReceived(args);
-        // });
         const redisHost = this.getEnvVarValue('CCS3_REDIS_HOST');
         const redisPortEnvVarVal = this.getEnvVarValue('CCS3_REDIS_PORT');
         const redisPort = redisPortEnvVarVal ? parseInt(redisPortEnvVarVal) : 6379;
-        console.log('Using redis host', redisHost, 'and port', redisPort);
+        this.logger.log('Using redis host', redisHost, 'and port', redisPort);
 
         let receivedMessagesCount = 0;
         const subClientOptions: CreateConnectedRedisClientOptions = {
@@ -64,144 +253,121 @@ export class DeviceConnector {
             port: redisPort,
             errorCallback: err => console.error('SubClient error', err),
             reconnectStrategyCallback: (retries: number, err: Error) => {
-                console.error('SubClient reconnect strategy error', retries, err);
+                this.logger.error('SubClient reconnect strategy error', retries, err);
                 return 5000;
             },
         };
-        const subClientMessageCallback: RedisClientMessageCallback = (sharedChannel, message) => {
+        const subClientMessageCallback: RedisClientMessageCallback = (channelName, message) => {
             receivedMessagesCount++;
-            console.log('subClient received message on channel', receivedMessagesCount, sharedChannel, message);
+            try {
+                const messageJson = this.deserializeBusMessageToMessage(message);
+                if (messageJson) {
+                    this.processBusMessageReceived(channelName, messageJson);
+                } else {
+                    this.logger.warn('The message', message, 'deserialized to null');
+                }
+            } catch (err) {
+                this.logger.warn('Cannot deserialize channel', channelName, 'message', message, err);
+            }
         };
+        this.logger.log('SubClient connecting to Redis');
         await this.subClient.connect(subClientOptions, subClientMessageCallback);
-        console.log('SubClient connected to Redis');
+        this.logger.log('SubClient connected to Redis');
         await this.subClient.subscribe(ChannelName.shared);
         await this.subClient.subscribe(ChannelName.devices);
-        console.log('SubClient subscribed to the channels');
+        this.logger.log('SubClient subscribed to the channels');
+
+        const pubClientOptions: CreateConnectedRedisClientOptions = {
+            host: redisHost,
+            port: redisPort,
+            errorCallback: err => this.logger.error('PubClient error', err),
+            reconnectStrategyCallback: (retries: number, err: Error) => {
+                this.logger.error('PubClient reconnect strategy error', retries, err);
+                return 5000;
+            },
+        };
+        this.logger.log('PubClient connecting to Redis');
+        await this.pubClient.connect(pubClientOptions);
+        this.logger.log('PubClient connected to Redis');
     }
 
     private startWebSocketServer(): void {
-        this.wssServerConnector = new WssServerConnector();
-        this.wssServerConnector.start();
-        this.wssEmitter = this.wssServerConnector.getEmitter();
+        this.wssServer = new WssServer();
+        const wssServerConfig: WssServerConfig = {
+            cert: fs.readFileSync('./certificates/device-connector-cert.pem').toString(),
+            key: fs.readFileSync('./certificates/device-connector-key.pem').toString(),
+            port: 65443
+        };
+        this.wssServer.start(wssServerConfig);
+        this.wssEmitter = this.wssServer.getEmitter();
         this.wssEmitter.on(WssServerEventName.clientConnected, args => this.processDeviceConnected(args));
         this.wssEmitter.on(WssServerEventName.connectionClosed, args => this.processDeviceConnectionClosed(args));
         this.wssEmitter.on(WssServerEventName.connectionError, args => this.processDeviceConnectionError(args));
         this.wssEmitter.on(WssServerEventName.messageReceived, args => this.processDeviceMessageReceived(args));
     }
 
-    private processDeviceConnected(args: ClientConnectedEventArgs): void {
-        this.logger.log('Device connected', args);
-        // TODO: Announce to message bus
-        const data: ConnectedClientData = {
-            connectionId: args.connectionId,
-        } as ConnectedClientData;
-        this.connectedClients.set(args.connectionId, data);
+    private startDeviceConnectionsMonitor(): void {
+        setInterval(() => this.cleanUpDeviceConnections(), 10000);
     }
 
-    private processDeviceConnectionClosed(args: ConnectionClosedEventArgs): void {
-        this.logger.log('Device connection closed', args);
-    }
-
-    private processDeviceConnectionError(args: ConnectionErrorEventArgs): void {
-        this.logger.log('Device connection error', args);
-    }
-
-    private processDeviceMessageReceived(args: MessageReceivedEventArgs): void {
-        const msg = this.deserializeToMessage(args.buffer);
-        const type = msg?.header?.type;
-        if (!type) {
-            return;
-        }
-
-        switch (type) {
-            case MessageType.deviceAuth:
-                this.processDeviceAuthMessage(msg, args.connectionId);
-                break;
-        }
-    }
-
-    processDeviceAuthMessage(msg: DeviceAuthMessage, clientConnectionId: number): void {
-        // TODO: Publish message to validate the device
-        const deviceAuthResultMsg = createDeviceAuthResultMessage();
-        deviceAuthResultMsg.body.authenticated = true;
-        deviceAuthResultMsg.body.settings = {
-            reportDiagnosticsInterval: 10000,
-            newerVersionUrl: 'https://{server}/',
-        };
-        this.wssServerConnector.sendMessageTo(clientConnectionId, deviceAuthResultMsg);
-    }
-
-    processRedisMessageReceived(args: MessageReceivedEventArgs): void {
-        this.logger.log('Redis message received', args);
-    }
-
-    deserializeToMessage(buffer: Buffer): Message<any> | null {
-        try {
-            const text = buffer.toString();
-            const json = JSON.parse(text);
-            return json as Message<any>;
-        } catch (err) {
-            return null;
-        }
-    }
-
-    private startSendingDeviceSetStatusMessage(): void {
-        setInterval(() => {
-            const connectionIds = this.wssServerConnector.getConnectionIds();
-            for (let i = 0; i < connectionIds.length; i++) {
-                const msg = createDeviceSetStatusMessage();
-                msg.body.accessType = Math.random() < 0.5 ? DeviceStatusAccessType.disabled : DeviceStatusAccessType.enabled;
-                msg.body.amounts = {
-                    durationSeconds: Math.ceil(Math.random() * 10000),
-                    totalSum: Math.random() * 50,
-                    remainingSeconds: Math.ceil(Math.random() * 3000),
-                };
-                this.wssServerConnector.sendMessageTo(connectionIds[i], msg);
+    private cleanUpDeviceConnections(): void {
+        const connectionIdsWithCleanUpReason = new Map<number, ConnectionCleanUpReason>();
+        const now = this.getNow();
+        // 20 seconds
+        const maxNotAuthenticatedDuration = 20 * 1000;
+        for (const entry of this.connectedClients.entries()) {
+            const connectionId = entry[0];
+            const data = entry[1];
+            if (!data.isAuthenticated && (now - data.connectedAt) > maxNotAuthenticatedDuration) {
+                connectionIdsWithCleanUpReason.set(connectionId, ConnectionCleanUpReason.tooLongNotAuthenticated);
             }
-        }, 10000);
+            // Add other conditions
+        }
+
+        for (const entry of connectionIdsWithCleanUpReason.entries()) {
+            const connectionId = entry[0];
+            const data = this.getConnectedClientData(connectionId);
+            this.logger.warn('Disconnecting client', connectionId, entry[1], data);
+            this.removeClient(connectionId);
+            this.wssServer.closeConnection(connectionId);
+        }
     }
-
-    // startSendingDiagnosticsToAll(): void {
-    //     setInterval(() => {
-    //         const msg = {
-    //             time: Date.now(),
-    //             cpuUsage: process.cpuUsage(),
-    //             memoryUsage: process.memoryUsage(),
-    //         };
-    //         this.wssServerConnector.sendMessageToAll(msg);
-    //     }, 5000);
-    // }
-
-    // startSendingDesktopSwitchToAll(): void {
-    //     setInterval(() => {
-    //         this.desktopSwitchCounter++;
-
-    //         const type = (this.desktopSwitchCounter % 2) ? 'switch-to-default-desktop' : 'switch-to-secured-desktop';
-    //         const msg = {
-    //             metadata: {
-    //                 type: type,
-    //             },
-    //             body: {
-    //                 time: Date.now(),
-    //             }
-    //         };
-    //         this.wssServerConnector.sendMessageToAll(msg);
-    //         setTimeout(() => {
-    //             const type = 'switch-to-default-desktop';
-    //             const msg = {
-    //                 metadata: {
-    //                     type: type,
-    //                 },
-    //                 body: {
-    //                     time: Date.now(),
-    //                 }
-    //             };
-    //             this.wssServerConnector.sendMessageToAll(msg);
-    //         }, 1000);
-    //     }, 10000);
-    // }
 
     getEnvVarValue(envVarName: string, defaultValue?: string): string | undefined {
         return process.env[envVarName] || defaultValue;
     }
+}
+
+interface ConnectedClientData {
+    connectionId: number;
+    connectedAt: number;
+    /**
+     * Device ID in the system
+     */
+    deviceId: string | null;
+    /**
+     * The client certificate
+     */
+    certificate: DetailedPeerCertificate | null;
+    /**
+     * certificate.fingeprint without the colon separator and lowercased
+     */
+    certificateThumbprint: string;
+    ipAddress: string | null;
+    lastMessageReceivedAt: number | null;
+    receivedMessagesCount: number;
+    /**
+     * Whether the client is authenticated to use the system
+     * While the system checks the client, it will not send messages to the client or process messages from it
+     */
+    isAuthenticated: boolean;
+}
+
+interface ConnectionRoundTripData extends RoundTripData {
+    connectionId: number;
+    certificateThumbprint: string;
+}
+
+const enum ConnectionCleanUpReason {
+    tooLongNotAuthenticated = 'too-long-not-authenticated',
 }

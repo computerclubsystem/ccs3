@@ -12,7 +12,8 @@
     "license": "ISC",
     "dependencies": {
         "@computerclubsystem/redis-client": "*",
-        "@computerclubsystem/types": "*"
+        "@computerclubsystem/types": "*",
+        "bson-objectid": "2.0.4"
     },
     "devDependencies": {
         "@types/node": "20.11.5",

@@ -120,7 +120,7 @@ spec:
   ports:
     - name: device-connector-backend
       protocol: TCP
-      port: 8443
+      port: 65443
       # targetPort: 6379
   selector:
     app: ccs3

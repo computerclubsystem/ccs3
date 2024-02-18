@@ -6,8 +6,9 @@
     "types": "dist/*/**.d.ts",
     "exports": {
         ".": null,
-        "./messages/*": "./dist/messages/*",
-        "./channels/*": "./dist/channels/*"
+        "./channels/*": "./dist/channels/*",
+        "./entities/*": "./dist/entities/*",
+        "./messages/*": "./dist/messages/*"
     },
     "scripts": {
         "build": "tsc --project tsconfig.json --sourceMap",
