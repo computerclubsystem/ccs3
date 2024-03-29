@@ -29,7 +29,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ccs3-status-manager-deployment
+  name: ccs3-state-manager-deployment
   labels:
     app: ccs3
     tier: backend
@@ -42,11 +42,11 @@ spec:
     metadata:
       labels:
         app: ccs3
-        pod: status-manager
+        pod: state-manager
     spec:
       containers:
-      - name: ccs3-status-manager-container
-        image: ccs3/status-manager:0.0.1
+      - name: ccs3-state-manager-container
+        image: ccs3/state-manager:0.0.1
         env:
         - name: CCS3_REDIS_HOST
           value: "ccs3-redis-service"
@@ -78,6 +78,37 @@ spec:
       containers:
       - name: ccs3-device-connector-container
         image: ccs3/device-connector:0.0.1
+        env:
+        - name: CCS3_REDIS_HOST
+          value: "ccs3-redis-service"
+        resources:
+          limits:
+            memory: 128Mi
+            cpu: "0.1"
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ccs3-operator-connector-deployment
+  labels:
+    app: ccs3
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ccs3
+  template:
+    metadata:
+      labels:
+        app: ccs3
+        pod: operator-connector
+    spec:
+      containers:
+      - name: ccs3-operator-connector-container
+        image: ccs3/operator-connector:0.0.1
         env:
         - name: CCS3_REDIS_HOST
           value: "ccs3-redis-service"

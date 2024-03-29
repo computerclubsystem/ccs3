@@ -13,8 +13,8 @@ import { Device } from '@computerclubsystem/types/entities/device.mjs';
 import { DeviceStatus, createBusDeviceStatusesMessage } from '@computerclubsystem/types/messages/bus/bus-device-statuses.message.mjs';
 import { DeviceState } from '@computerclubsystem/types/entities/device-state.mjs';
 
-export class StatusManager {
-    private readonly messageBusIdentifier = 'ccs3/status-manager';
+export class StateManager {
+    private readonly messageBusIdentifier = 'ccs3/state-manager';
     private readonly subClient = new RedisSubClient();
     private readonly pubClient = new RedisPubClient();
     private readonly logger = new Logger();

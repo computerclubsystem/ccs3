@@ -7,13 +7,13 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "status-manager",
+            "name": "state-manager",
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}/apps/status-manager/src/index.mts",
+            "program": "${workspaceFolder}/apps/state-manager/src/index.mts",
             "outFiles": [
-                "${workspaceFolder}/apps/status-manager/dist/**/*.mjs"
+                "${workspaceFolder}/apps/state-manager/dist/**/*.mjs"
             ]
         },
         {
@@ -26,6 +26,18 @@
             "program": "${workspaceFolder}/apps/device-connector/src/index.mts",
             "outFiles": [
                 "${workspaceFolder}/apps/device-connector/dist/**/*.mjs"
+            ]
+        },
+        {
+            "type": "node",
+            "request": "launch",
+            "name": "operator-connector",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}/apps/operator-connector/src/index.mts",
+            "outFiles": [
+                "${workspaceFolder}/apps/operator-connector/dist/**/*.mjs"
             ]
         }
     ]

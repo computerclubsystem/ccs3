@@ -296,7 +296,7 @@ export class DeviceConnector {
         const wssServerConfig: WssServerConfig = {
             cert: fs.readFileSync('./certificates/device-connector-cert.pem').toString(),
             key: fs.readFileSync('./certificates/device-connector-key.pem').toString(),
-            port: 65443
+            port: 65444
         };
         this.wssServer.start(wssServerConfig);
         this.wssEmitter = this.wssServer.getEmitter();
@@ -319,7 +319,7 @@ export class DeviceConnector {
             const connectionId = entry[0];
             const data = entry[1];
             if (!data.isAuthenticated && (now - data.connectedAt) > maxNotAuthenticatedDuration) {
-                connectionIdsWithCleanUpReason.set(connectionId, ConnectionCleanUpReason.tooLongNotAuthenticated);
+                connectionIdsWithCleanUpReason.set(connectionId, ConnectionCleanUpReason.authenticationTimeout);
             }
             // Add other conditions
         }
@@ -369,5 +369,5 @@ interface ConnectionRoundTripData extends RoundTripData {
 }
 
 const enum ConnectionCleanUpReason {
-    tooLongNotAuthenticated = 'too-long-not-authenticated',
+    authenticationTimeout = 'authentication-timeout',
 }

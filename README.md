@@ -14,10 +14,10 @@ Build requires certain order - first build the dependencies and then the applica
 ```bash
 npm run build:libs/types
 npm run build:libs/redis-client
-npm run build:apps/status-manager
+npm run build:apps/state-manager
 npm run build:apps/device-connector
 ```
-The results can be found in the `dist` folder in the corresponding app (like `status-manager/dist` for the `status-manager` app).
+The results can be found in the `dist` folder in the corresponding app (like `state-manager/dist` for the `state-manager` app).
 
 To build everything with single command:
 ```bash
@@ -25,12 +25,12 @@ npm run build
 ```
 
 ## Debug
-Debugging is configured for VSCode in `.vscode/launch.json` file. To debug the app, first build it (preferrably in `watch` mode) and then select the appropriate VSCode launch configuration. Applications have dependencies (like `apps/status-manager` depends on `libs/redis-client`) so these dependencies should also be build. To ensure a change in any component (application or library) will be reflected in the debugged application, execute all of these in their own terminals in the following order:
+Debugging is configured for VSCode in `.vscode/launch.json` file. To debug the app, first build it (preferrably in `watch` mode) and then select the appropriate VSCode launch configuration. Applications have dependencies (like `apps/state-manager` depends on `libs/redis-client`) so these dependencies should also be build. To ensure a change in any component (application or library) will be reflected in the debugged application, execute all of these in their own terminals in the following order:
 
 ```bash
 npm run build:libs/types:watch
 npm run build:libs/redis-client:watch
-npm run build:apps/status-manager:watch
+npm run build:apps/state-manager:watch
 npm run build:apps/device-connector:watch
 ```
 
@@ -39,7 +39,7 @@ After a source code change of any of them, the debugging session must be restart
 ## NPM workspaces
 The code uses NPM workspaces so most of the `npm` commands must specify the workspace (by adding `-w` or `--workspace`) like:
 ```bash
-npm -w apps/status-manager install ...
+npm -w apps/state-manager install ...
 ```
 
 ## Dependencies
@@ -212,21 +212,21 @@ import { ... } from '@computerclubsystem/<new-lib-name>'
 ## Build docker images
 DevOps related files are in `devops` folder. Each dockerfile has a comment in the beginning showing a sample command line that builds the image. The `package.json` file has npm scripts for building images if Docker Desktop is used or Rancher Desktop is used with `containerd` (`nerdctl`) like:
 ```bash
-npm run apps/status-manager:build-image-docker
+npm run apps/state-manager:build-image-docker
 ```
 or
 ```bash
-npm run apps/status-manager:build-image-racnher-nerdctl
+npm run apps/state-manager:build-image-racnher-nerdctl
 ```
 
-Building `status-manager` manually would look like this for Docker Desktop:
+Building `state-manager` manually would look like this for Docker Desktop:
 ```bash
-docker build -t ccs3/status-manager:0.0.1 -f Dockerfile.status-manager ../apps/status-manager
+docker build -t ccs3/state-manager:0.0.1 -f Dockerfile.state-manager ../apps/state-manager
 ```
 
-Building `status-manager` manually would look like this for Rancher Desktop with `containerd` (`nerdctl`):
+Building `state-manager` manually would look like this for Rancher Desktop with `containerd` (`nerdctl`):
 ```bash
-nerdctl -n k8s.io build -t ccs3/status-manager:0.0.1 -f Dockerfile.status-manager ../apps/status-manager
+nerdctl -n k8s.io build -t ccs3/state-manager:0.0.1 -f Dockerfile.state-manager ../apps/state-manager
 ```
 
 Building all the images for Docker Desktop:
@@ -268,7 +268,4 @@ kubectl apply -f ./devops/ccs3-staging.yaml
 ```
 
 ## Certificates
-Device connector needs certificate files to operate its WebSocket server. Sample files can be found in `certificates` folder - `device-connector-cert.pem` and `device-connector-key.pem`. These should be used for development purposes only - deployed version must use other certificates. Sample OpenSSL usage to create self-signed certificate .pem files:
-```bash
-openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout key.pem -out cert.pem -addext "extendedKeyUsage = serverAuth"
-```
+Look at `certificates/README.md`
