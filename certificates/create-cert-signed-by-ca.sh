@@ -6,10 +6,10 @@
 # After the .crt and .key files are created, combine them in .pfx to import them in Windows certificate store
 # openssl pkcs12 -export -out cert-file-name.pfx -inkey file.key -in file.crt
 
-if [ "$#" -ne 4 ]
+if [ "$#" -ne 5 ]
 then
-  echo "Usage: Must supply a <domain> <CA cert file> <CA key file> <Subject>"
-  echo "Sample: bash create-cert-signed-by-ca.sh ccs3.operator-connector.local ccs3-ca.crt ccs3-ca.key /C=BG/ST=Varna/O=CCS3/OU=Dev/CN=ccs3.operator-connector.local"
+  echo "Usage: Must supply a <domain> <CA cert file> <CA key file> <Subject> <Usage>"
+  echo "Sample: bash create-cert-signed-by-ca.sh ccs3.operator-connector.local ccs3-ca.crt ccs3-ca.key /C=BG/ST=Varna/O=CCS3/OU=Dev/CN=ccs3.operator-connector.local 'serverAuth, clientAuth'"
   exit 1
 fi
 
@@ -17,6 +17,7 @@ DOMAIN=$1
 CA_CERT_FILE=$2
 CA_KEY_FILE=$3
 SUBJECT=$4
+USAGE=$5
 
 openssl genrsa -out $DOMAIN.key 2048
 openssl req -new -key $DOMAIN.key -out $DOMAIN.csr -subj $SUBJECT
@@ -25,7 +26,7 @@ cat > $DOMAIN.ext << EOF
 authorityKeyIdentifier=keyid,issuer
 basicConstraints=CA:FALSE
 keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
-extendedKeyUsage = serverAuth, clientAuth
+extendedKeyUsage = $USAGE
 subjectAltName = @alt_names
 [alt_names]
 DNS.1 = $DOMAIN
