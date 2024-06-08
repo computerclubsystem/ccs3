@@ -36,13 +36,13 @@ Each service on the server that accepts connections from clients (operator brows
 
 This is how to create certificate for the operator connector service:
 ```bash
-bash create-cert-signed-by-ca.sh ccs3.operator-connector.local ccs3-ca.crt ccs3-ca.key /C=BG/ST=Varna/O=CCS3/OU=Dev/CN=ccs3.operator-connector.local
+bash create-cert-signed-by-ca.sh ccs3.operator-connector.local ccs3-ca.crt ccs3-ca.key /C=BG/ST=Varna/O=CCS3/OU=Dev/CN=ccs3.operator-connector.local serverAuth
 ```
-You will be asked for password - select a good password, with lower and upper case letters, numbers, special characters and 16 or more characters long - keep this password in a safe place. 5 files will be created with extensions `.key`, `.csr`, `.ext`, `.crt` and `.pfx` with the name provided in the first parameter. Copy these files in a safe place.
+You will be asked for password - select a good password, with lower and upper case letters, numbers, special characters and 16 or more characters long - keep this password in a safe place. 6 files will be created with extensions `.crt`, `csr`, `.ext`, `.key`, `.pem` and `.pfx` with the name provided in the first parameter. Copy these files in a safe place.
 
 Repeat the above for device connector service certificate:
 ```bash
-bash create-cert-signed-by-ca.sh ccs3.device-connector.local ccs3-ca.crt ccs3-ca.key /C=BG/ST=Varna/O=CCS3/OU=Dev/CN=ccs3.device-connector.local
+bash create-cert-signed-by-ca.sh ccs3.device-connector.local ccs3-ca.crt ccs3-ca.key /C=BG/ST=Varna/O=CCS3/OU=Dev/CN=ccs3.device-connector.local serverAuth
 ```
 
 The services need the `.crt` and `.key` file to operate correctly. Copy these files in the `certificates` directory of this project. The different services will look for different certificate files. These are the file names that are used by the services:
@@ -57,7 +57,7 @@ The services need the `.crt` and `.key` file to operate correctly. Copy these fi
 ## Client certificates
 Client certificates are created the same way the service certiicates are (look previous section). When providing parameters, for domain name and CN value use the computer name. Sample usage for computer named `comp-1`:
 ```bash
-bash create-cert-signed-by-ca.sh comp-1 ccs3-ca.crt ccs3-ca.key /C=BG/ST=Varna/O=CCS3/OU=Dev/CN=comp-1
+bash create-cert-signed-by-ca.sh comp-1 ccs3-ca.crt ccs3-ca.key /C=BG/ST=Varna/O=CCS3/OU=Dev/CN=comp-1 clientAuth
 ```
 
 ## Installing client certificates on Windows computers
@@ -71,4 +71,6 @@ The operator browser tries to connect to `https://ccs3.operator-connector.local:
 Change `192.168.1.20` with the real IP address of the server computer where the `operator-connector` service is running.
 
 ## Using operator browser
+Note: This will soon be deprecated after implementing web application static files serving and WebSocket connection are combined in a single HTTP server:
+
 The certificate of `ccs3.operator-connector.local` is considered "not safe" by the browser. The operator must accept the certificate before connecting to the server. If you see certificate-related error in Chrome, click on "Advanced" button and then `Proceed to localhost (unsafe)` link. Open new tab and navigate to `https://ccs3.operator-connector.local:65444/` - this will cause Chrome to accept the certificate for the WebSocket connection. Now you can close this tab and refresh the previous tab `https://ccs3.operator-connector.local:65443/` - the browser should connect now without warnings or errors. 
