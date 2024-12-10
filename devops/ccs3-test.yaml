@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ccs3-static-files-deployment
+  labels:
+    app: ccs3
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ccs3
+  template:
+    metadata:
+      labels:
+        app: ccs3
+        pod: ccs3-static-files
+    spec:
+      containers:
+      - name: ccs3-static-files-container
+        image: ccs3/sfs:latest
+        imagePullPolicy: Never
+        resources:
+          limits:
+            memory: 32Mi
+            cpu: "0.1"
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ccs3-valkey-deployment
+  labels:
+    app: ccs3
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ccs3
+  template:
+    metadata:
+      labels:
+        app: ccs3
+        pod: valkey
+    spec:
+      containers:
+      - name: ccs3-valkey-container
+        image: valkey/valkey:8.0.1-alpine3.20
+        resources:
+          limits:
+            memory: 128Mi
+            cpu: "0.1"
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: ccs3-valkey-service
+  labels:
+    app: ccs3
+    service: ccs3-valkey-service
+spec:
+  type: ClusterIP
+  ports:
+    - name: valkey-backend
+      protocol: TCP
+      port: 6379
+    #   targetPort: 6379
+  selector:
+    app: ccs3
+    pod: valkey
