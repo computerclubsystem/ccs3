@@ -15,11 +15,13 @@ import {
 } from '@computerclubsystem/redis-client';
 import { ChannelName } from '@computerclubsystem/types/channels/channel-name.mjs';
 import { createBusDeviceGetByCertificateRequestMessage } from '@computerclubsystem/types/messages/bus/bus-device-get-by-certificate-request.message.mjs';
+import { createBusDeviceUnknownDeviceConnectedRequestMessage } from '@computerclubsystem/types/messages/bus/bus-device-unknown-device-connected-request.message.mjs';
 import { BusDeviceGetByCertificateReplyMessage } from '@computerclubsystem/types/messages/bus/bus-device-get-by-certificate-reply.message.mjs';
 import { MessageType } from '@computerclubsystem/types/messages/declarations/message-type.mjs';
 import { RoundTripData } from '@computerclubsystem/types/messages/declarations/round-trip-data.mjs';
 import { BusDeviceStatusesMessage, DeviceStatus } from '@computerclubsystem/types/messages/bus/bus-device-statuses.message.mjs';
 import { createDeviceSetStatusMessage } from '@computerclubsystem/types/messages/devices/device-set-status.message.mjs';
+import { ConnectionRoundTripData } from '@computerclubsystem/types/messages/declarations/connection-roundtrip-data.mjs';
 
 export class DeviceConnector {
     redisConnector!: RedisConnector;
@@ -42,8 +44,18 @@ export class DeviceConnector {
 
     private processDeviceConnected(args: ClientConnectedEventArgs): void {
         this.logger.log('Device connected', args);
-        if (!args.ipAddress || !args.certificate?.fingerprint) {
-            this.logger.warn('The device ip address is unknown or certificate does not have fingerprint');
+        const clientCertificateFingerprint = args.certificate?.fingerprint;
+        if (!args.ipAddress || !clientCertificateFingerprint) {
+            // The args.ipAddress can be undefined if the client already closed the connection
+            this.logger.warn(
+                'The device ip address is missing / client disconnected or the certificate does not have fingerprint',
+                'IP address',
+                args.ipAddress,
+                'Certificate thumbprint',
+                clientCertificateFingerprint,
+                'Connection Id', args.connectionId
+            );
+            this.wssServer.closeConnection(args.connectionId);
             return;
         }
         const data: ConnectedClientData = {
@@ -51,7 +63,7 @@ export class DeviceConnector {
             connectedAt: this.getNow(),
             deviceId: null,
             certificate: args.certificate,
-            certificateThumbprint: this.getLowercasedCertificateThumbprint(args.certificate.fingerprint),
+            certificateThumbprint: this.getLowercasedCertificateThumbprint(clientCertificateFingerprint),
             ipAddress: args.ipAddress,
             lastMessageReceivedAt: null,
             receivedMessagesCount: 0,
@@ -62,9 +74,10 @@ export class DeviceConnector {
         const roundTripData: ConnectionRoundTripData = {
             connectionId: data.connectionId,
             certificateThumbprint: data.certificateThumbprint,
+            ipAddress: args.ipAddress,
         };
         msg.header.roundTripData = roundTripData;
-        msg.body.certificateThumbprint = args.certificate.fingerprint.replaceAll(':', '').toLowerCase();
+        msg.body.certificateThumbprint = data.certificateThumbprint;
         msg.body.ipAddress = args.ipAddress;
         this.publishToDevicesChannel(msg);
     }
@@ -172,13 +185,19 @@ export class DeviceConnector {
         const device: Device = message.body.device;
         const roundtripData = message.header.roundTripData as ConnectionRoundTripData;
         const connectionId = roundtripData.connectionId;
-        if (!device || device.deactivated) {
-            this.logger.log('The device', device, 'is not active. Closing connection.', roundtripData);
+        if (!device) {
+            // Device with specified certificate does not exist
+            this.sendBusDeviceUnknownDeviceConnectedRequestMessage(roundtripData.ipAddress, roundtripData.connectionId, roundtripData.certificateThumbprint);
+            return;
+        }
+        if (!device?.active) {
+            this.logger.log('The device is not active. Closing connection. Device', device?.id, roundtripData);
             this.removeClient(connectionId);
             this.wssServer.closeConnection(connectionId);
             return;
         }
 
+        // Attach websocket server to connection so we receive events
         const connectionExist = this.wssServer.attachToConnection(connectionId);
         if (!connectionExist) {
             this.removeClient(connectionId);
@@ -190,6 +209,19 @@ export class DeviceConnector {
             clientData.isAuthenticated = true;
             // TODO: Send message to device
         }
+    }
+
+    private sendBusDeviceUnknownDeviceConnectedRequestMessage(ipAddress: string, connectionId: number, certificateThumbprint: string): void {
+        const msg = createBusDeviceUnknownDeviceConnectedRequestMessage();
+        const roundTripData: ConnectionRoundTripData = {
+            connectionId: connectionId,
+            certificateThumbprint: certificateThumbprint,
+            ipAddress: ipAddress,
+        };
+        msg.header.roundTripData = roundTripData;
+        msg.body.certificateThumbprint = certificateThumbprint;
+        msg.body.ipAddress = ipAddress;
+        this.publishToDevicesChannel(msg);
     }
 
     private getConnectedClientData(connectionId: number): ConnectedClientData | undefined {
@@ -294,8 +326,8 @@ export class DeviceConnector {
     private startWebSocketServer(): void {
         this.wssServer = new WssServer();
         const wssServerConfig: WssServerConfig = {
-            cert: fs.readFileSync('./certificates/device-connector-cert.pem').toString(),
-            key: fs.readFileSync('./certificates/device-connector-key.pem').toString(),
+            cert: fs.readFileSync('./certificates/ccs3.device-connector.local.crt').toString(),
+            key: fs.readFileSync('./certificates/ccs3.device-connector.local.key').toString(),
             port: 65444
         };
         this.wssServer.start(wssServerConfig);
@@ -315,13 +347,20 @@ export class DeviceConnector {
         const now = this.getNow();
         // 20 seconds
         const maxNotAuthenticatedDuration = 20 * 1000;
+        const maxIdleTimeoutDuration = 20 * 1000;
         for (const entry of this.connectedClients.entries()) {
             const connectionId = entry[0];
             const data = entry[1];
+            // Devices are authenticating with certificates
             if (!data.isAuthenticated && (now - data.connectedAt) > maxNotAuthenticatedDuration) {
                 connectionIdsWithCleanUpReason.set(connectionId, ConnectionCleanUpReason.authenticationTimeout);
             }
             // Add other conditions
+            if (data.lastMessageReceivedAt) {
+                if ((now - data.lastMessageReceivedAt) > maxIdleTimeoutDuration) {
+                    connectionIdsWithCleanUpReason.set(connectionId, ConnectionCleanUpReason.idleTimeout);
+                }
+            }
         }
 
         for (const entry of connectionIdsWithCleanUpReason.entries()) {
@@ -363,11 +402,7 @@ interface ConnectedClientData {
     isAuthenticated: boolean;
 }
 
-interface ConnectionRoundTripData extends RoundTripData {
-    connectionId: number;
-    certificateThumbprint: string;
-}
-
 const enum ConnectionCleanUpReason {
     authenticationTimeout = 'authentication-timeout',
+    idleTimeout = 'idle-timeout',
 }

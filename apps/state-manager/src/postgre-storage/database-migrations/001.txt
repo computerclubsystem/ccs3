@@ -1,0 +1,30 @@
+CREATE TABLE db_metadata
+(
+    id SERIAL PRIMARY KEY NOT NULL,
+    name TEXT UNIQUE NOT NULL,
+    value TEXT NULL
+);
+
+CREATE TABLE device_group
+(
+    id SERIAL PRIMARY KEY NOT NULL,
+    name TEXT UNIQUE NOT NULL,
+    description TEXT NULL,
+    enabled BOOLEAN NOT NULL
+);
+
+CREATE TABLE device
+(
+    id SERIAL PRIMARY KEY NOT NULL,
+    certificate_thumbprint TEXT UNIQUE NULL,
+    ip_address TEXT NOT NULL,
+    name TEXT NULL,
+    description TEXT NULL,
+    created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+    approved BOOLEAN NOT NULL,
+    enabled BOOLEAN NOT NULL,
+    device_group_id INTEGER NULL,
+    CONSTRAINT fk_device_device_group_id_device_group_id FOREIGN KEY (device_group_id) REFERENCES device_group(id) 
+);
+
+INSERT INTO db_metadata (name, value) VALUES ('database-version', '1');

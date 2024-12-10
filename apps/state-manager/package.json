@@ -13,10 +13,12 @@
     "dependencies": {
         "@computerclubsystem/redis-client": "*",
         "@computerclubsystem/types": "*",
-        "bson-objectid": "2.0.4"
+        "bson-objectid": "2.0.4",
+        "pg": "^8.13.1"
     },
     "devDependencies": {
         "@types/node": "20.11.5",
+        "@types/pg": "^8.11.10",
         "typescript": "5.3.3"
     }
 }

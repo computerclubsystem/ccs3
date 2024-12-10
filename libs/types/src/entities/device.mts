@@ -2,7 +2,7 @@ export interface Device {
     id: string;
     name: string;
     certificateThumbprint: string;
-    deactivated: boolean;
+    active: boolean;
     allowedIpAddress?: string;
     createdAt: string;
 }

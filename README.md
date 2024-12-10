@@ -28,10 +28,10 @@ npm run build
 Debugging is configured for VSCode in `.vscode/launch.json` file. To debug the app, first build it (preferrably in `watch` mode) and then select the appropriate VSCode launch configuration. Applications have dependencies (like `apps/state-manager` depends on `libs/redis-client`) so these dependencies should also be build. To ensure a change in any component (application or library) will be reflected in the debugged application, execute all of these in their own terminals in the following order:
 
 ```bash
-npm run build:libs/types:watch
-npm run build:libs/redis-client:watch
-npm run build:apps/state-manager:watch
-npm run build:apps/device-connector:watch
+npm run libs/types:build-watch
+npm run libs/redis-client:build-watch
+npm run apps/state-manager:build-watch
+npm run apps/device-connector:build-watch
 ```
 
 After a source code change of any of them, the debugging session must be restarted.

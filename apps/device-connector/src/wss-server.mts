@@ -52,7 +52,12 @@ export class WssServer {
         });
 
         this.wsServer.on('connection', (webSocket, request) => this.clientConnected(webSocket, request));
+        this.wsServer.on('error', (error) => this.serverError(error));
         this.httpsServer.listen(config.port, '0.0.0.0', 50);
+    }
+
+    serverError(error: Error): void {
+        console.error('Server error', error);
     }
 
     closeConnection(connectionId: number): void {
