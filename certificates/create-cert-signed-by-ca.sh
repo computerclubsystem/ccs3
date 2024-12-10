@@ -2,7 +2,7 @@
 
 # To generate ccs3-ca.pem and ccs3-ca.key use:
 # openssl genrsa -des3 -out ccs3-ca.key 2048
-# openssl req -x509 -new -nodes -key ccs3-ca.key -sha256 -days 1825 -out ccs3-ca.pem
+# openssl req -x509 -new -nodes -key ccs3-ca.key -sha256 -days 1825 -out ccs3-ca.crt
 # After the .crt and .key files are created, combine them in .pfx to import them in Windows certificate store
 # openssl pkcs12 -export -out cert-file-name.pfx -inkey file.key -in file.crt
 
