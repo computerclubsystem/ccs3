@@ -4,6 +4,4 @@ FROM nginx:1.27.3-alpine-slim
 COPY nginx.conf /etc/nginx
 COPY health-check.txt /usr/share/nginx/html
 COPY --from=caws /usr/ccs3-zipped-files /usr/share/nginx/html
-# TODO: Copy the new nginx.conf file
-# TODO: Create sample .txt file for Kubernetes health check
 CMD ["nginx", "-g", "daemon off;"]
