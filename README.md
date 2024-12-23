@@ -1,3 +1,5 @@
+# Notice: This repository is archived - use https://github.com/computerclubsystem/ccs3-backend
+
 # Computer Club System 3
 
 ## Prerequisites
